@@ -27,6 +27,12 @@ class TxIO(io.IOBase):
             tmpname: str = sha512(str(self._orgfile.absolute()).encode()).hexdigest()
             self._tmpfile = pathlib.Path("tmp") / tmpname
 
+            # copy original file to tmpfile
+            if self._orgfile.exists():
+                self._tmpfile.write_bytes(self._orgfile.read_bytes())
+            else:
+                self._tmpfile.touch()
+
             self._f: IO = self._tmpfile.open(mode, buffering, encoding, errors, newline)
         else:
             self._f: IO = self._orgfile.open(mode, buffering, encoding, errors, newline)
