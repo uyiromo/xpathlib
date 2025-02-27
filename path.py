@@ -150,7 +150,7 @@ class Path(os.PathLike):
             self.lpath.unlink(missing_ok=False)
 
         elif self.is_dir():
-            lg.info(f"_buildcache_core: {self}")
+            lg.info(f"_sync_core: {self}")
             for f in self.iterdir():
                 f._sync_core()
 
