@@ -150,7 +150,7 @@ class Path(os.PathLike):
             self.lpath.unlink(missing_ok=False)
 
         elif self.is_dir():
-            lg.info(f"_buildcache_core: {self}")
+            lg.info(f"_sync_core: {self}")
             for f in self.iterdir():
                 f._sync_core()
 
@@ -495,10 +495,12 @@ class Path(os.PathLike):
         return self._is_cached() or (self._relpath.exists() and not self._is_removed())
 
     def is_file(self, *, follow_symlinks: bool = True) -> bool:
-        raise NotImplementedError()
+        assert self._is_cached(), f"{self.lpath} is not cached!"
+        return self.lpath.is_file()
 
     def is_dir(self, *, follow_symlinks: bool = True) -> bool:
-        raise NotImplementedError()
+        assert self._is_cached(), f"{self.lpath} is not cached!"
+        return self.lpath.is_dir()
 
     def is_symlink(self) -> bool:
         raise NotImplementedError()
