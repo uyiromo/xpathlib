@@ -158,7 +158,7 @@ def ssh_rm(ctxt: SSHContext, rpath: pathlib.Path, do_wol: bool = True) -> None:
 
     """
     lg.debug(args2str(locals()))
-    assert all([p.is_absolute() for p in rpath]), f"rpath must be absolute ones: {rpath}"
+    assert rpath.is_absolute(), f"rpath must be absolute one: {rpath}"
 
     cmd: str = f"rm -rf {escape(rpath, extra=True)}"
     _: CompletedProcess = ctxt.run_sshcmd(cmd, do_wol)
