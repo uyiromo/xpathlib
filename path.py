@@ -149,7 +149,7 @@ class Path(os.PathLike):
             ssh_rm(self._sshctxt, self.rpath, do_wol=False)
             self.lpath.unlink(missing_ok=False)
 
-        elif self.is_dir():
+        elif self.lpath.is_dir():
             lg.info(f"_sync_core: {self}")
             for f in self.iterdir():
                 f._sync_core()
