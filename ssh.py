@@ -10,6 +10,7 @@ from socket import AF_INET, IPPROTO_UDP, SO_BROADCAST, SOCK_DGRAM, SOL_SOCKET, s
 from subprocess import CompletedProcess, run
 from time import sleep
 from typing import List
+import struct
 
 from .logger import args2str, getlg
 
@@ -40,21 +41,6 @@ def escape(rpath: pathlib.Path, extra: bool = False) -> str:
     return rpath_safe
 
 
-def build_wolpacket(macaddr: str) -> bytes:
-    packet: bytearray = bytearray()
-
-    # 0xFF x6
-    for _ in range(6):
-        packet.append(0xFF)
-
-    # macaddr x16
-    for _ in range(16):
-        for x in macaddr.split(":"):
-            packet.append(int(x, base=16))
-
-    return bytes(packet)
-
-
 def runcmd(cmd: str) -> CompletedProcess:
     lg.debug(args2str(locals()))
     return run(cmd, shell=True, capture_output=True, text=True)
@@ -68,7 +54,9 @@ class SSHContext:
         self.broadcastaddr: str = broadcastaddr
 
         # build wolpacket
-        self.wolpacket: bytes = build_wolpacket(macaddr)
+        # 0xFF x6 + macaddr x16
+        macaddr_hex: List[int] = [int(x, base=16) for x in macaddr.split(":")]
+        self.wolpacket: bytes = struct.pack("!6B", *[0xFF] * 6) + struct.pack("!96B", *macaddr_hex * 16)
 
         # build nccmd
         self.nccmd: str = f"nc -v -w 1 {self.ipaddr} -z 22"
