@@ -319,7 +319,7 @@ class Path(os.PathLike):
         return self.lpath.__fspath__()
 
     def __str__(self) -> str:
-        return str(self._relpath)
+        return str(self.lpath)
 
     #
     # PurePath: General properties
