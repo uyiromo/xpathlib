@@ -62,7 +62,7 @@ class Path(os.PathLike):
     def _is_cached(self) -> bool:
         """True if a file pointed by `self` has been cached (exists and not DEVZERO)"""
         lp: Path = self.lpath
-        return lp.exists() and lp.is_file()
+        return lp.exists() and (lp.is_file() or lp.is_dir())
 
     def _is_removed(self) -> bool:
         """True if local file has been removed (symlink to DEVNULL)"""
