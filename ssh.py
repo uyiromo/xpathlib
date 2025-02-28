@@ -2,6 +2,7 @@
 
 import os
 import pathlib
+import struct
 from base64 import b64decode, b64encode
 from dataclasses import dataclass
 from logging import Logger
@@ -10,7 +11,6 @@ from socket import AF_INET, IPPROTO_UDP, SO_BROADCAST, SOCK_DGRAM, SOL_SOCKET, s
 from subprocess import CompletedProcess, run
 from time import sleep
 from typing import List
-import struct
 
 from .logger import args2str, getlg
 
