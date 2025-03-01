@@ -495,7 +495,7 @@ class Path(os.PathLike):
 
     def exists(self) -> bool:
         """Return True if the file exists and NOT removed"""
-        return self._is_cached() or (self._lpath.exists() and not self._is_removed())
+        return self._is_cached() or (self.lpath.exists() and not self._is_removed())
 
     def is_file(self, *, follow_symlinks: bool = True) -> bool:
         assert self._is_cached(), f"{self.lpath} is not cached!"
