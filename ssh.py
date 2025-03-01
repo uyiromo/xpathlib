@@ -82,6 +82,7 @@ class SSHContext:
         return
 
     def run_sshcmd(self, cmd: str, do_wol: bool) -> CompletedProcess:
+        lg.debug(args2str(locals()))
         if do_wol:
             self.wol()
         else:
@@ -90,6 +91,7 @@ class SSHContext:
         return runcmd(f'ssh {self.host} {CM_ARGS} "{cmd}"')
 
     def run_scpfrom(self, rpath: pathlib.Path, lpath: pathlib.Path, do_wol: bool) -> CompletedProcess:
+        lg.debug(args2str(locals()))
         if do_wol:
             self.wol()
         else:
@@ -100,6 +102,7 @@ class SSHContext:
         return runcmd(f"scp {CM_ARGS} {self.host}:{escape(s_rp)} {escape(s_lp)}")
 
     def run_scpto(self, lpath: pathlib.Path, rpath: pathlib.Path, do_wol: bool) -> CompletedProcess:
+        lg.debug(args2str(locals()))
         if do_wol:
             self.wol()
         else:
