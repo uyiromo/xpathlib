@@ -541,7 +541,12 @@ class Path(os.PathLike):
         newline: Optional[str] = None,
     ) -> typing.IO:
         lg.debug(args2str(locals()))
-        self._cache()
+
+        # cache is required only when reading ("r") or appendig ("a")
+        if ("r" in mode) or ("a" in mode):
+            self._cache()
+        else:
+            pass
 
         if "b" in mode:
             return TxRawIO(self.lpath, mode, buffering, None, None, None)
