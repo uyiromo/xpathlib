@@ -113,6 +113,7 @@ class Path(os.PathLike):
 
     def _remove(self) -> None:
         """Remove local file and mark it as removed (symlink to DEVNULL)"""
+        lg.debug(args2str(locals()))
         lp: Path = self.lpath
 
         # remove local files
@@ -137,6 +138,7 @@ class Path(os.PathLike):
 
     def _sync_core(self) -> None:
         """core ops for sync(), do ssh ops without WOL"""
+        lg.debug(args2str(locals()))
 
         # each file state is one of the following:
         # 1. removed
@@ -145,6 +147,7 @@ class Path(os.PathLike):
         #    -> recursively sync
         # 3. file
         #    -> sync if cached
+
         if self._is_removed():
             ssh_rm(self._sshctxt, self.rpath, do_wol=False)
             self.lpath.unlink(missing_ok=False)
@@ -537,6 +540,7 @@ class Path(os.PathLike):
         errors: Optional[str] = None,
         newline: Optional[str] = None,
     ) -> typing.IO:
+        lg.debug(args2str(locals()))
         self._cache()
 
         if "b" in mode:
@@ -629,6 +633,8 @@ class Path(os.PathLike):
     # def rename(self, target: str | os.PathLike) -> None:
     def rename(self, target: Path) -> Path:
         """rename() both on local and remote"""
+        lg.debug(args2str(locals()))
+
         ssh_mv(self._sshctxt, self.rpath, target.rpath)
         self.lpath.rename(target.lpath)
 
@@ -636,12 +642,16 @@ class Path(os.PathLike):
 
     # def replace(self, target: str | os.PathLike) -> None:
     def replace(self, target: Path) -> Path:
+        lg.debug(args2str(locals()))
+
         ssh_mv(self._sshctxt, self.rpath, target.rpath)
         self.lpath.replace(target.lpath)
 
         return target
 
     def unlink(self, missing_ok: bool = False) -> None:
+        lg.debug(args2str(locals()))
+
         lp: pathlib.Path = self.lpath
 
         # remove and mark as REMOVED
@@ -651,6 +661,8 @@ class Path(os.PathLike):
         return
 
     def rmdir(self) -> None:
+        lg.debug(args2str(locals()))
+
         lp: pathlib.Path = self.lpath
 
         # remove and mark as REMOVED
