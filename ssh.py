@@ -10,7 +10,7 @@ from pickle import loads
 from socket import AF_INET, IPPROTO_UDP, SO_BROADCAST, SOCK_DGRAM, SOL_SOCKET, socket
 from subprocess import CompletedProcess, run
 from time import sleep
-from typing import List
+from typing import List, Iterable, Tuple
 
 from .logger import args2str, getlg
 
@@ -113,39 +113,48 @@ class SSHContext:
         return runcmd(f"scp {CM_ARGS} {escape(s_lp)} {self.host}:{escape(s_rp)}")
 
 
-@dataclass(frozen=True)
-class SSHFile:
-    reldir: pathlib.Path
-    name: str
-    isdir: bool
-
-
-def ssh_ls(ctxt: SSHContext, remotedir: pathlib.Path, do_wol: bool = True) -> List[SSHFile]:
-    """ls
+def ssh_walk(
+    ctxt: SSHContext, remotetop: pathlib.Path, do_wol: bool = True
+) -> Iterable[Tuple[pathlib.Path, List[str], List[str]]]:
+    """os.walk(topdown=True)
 
     Args:
         ctxt (obj:`SSHContext`): SSHContext
-        remotedir (obj:`pathlib.Path`): remote directory path
+        remotetop (obj:`pathlib.Path`): remote top directory path
         do_wol (obj:`bool`): True if wake-on-LAN
 
     Returns:
-        List[SSHFile]: list of SSHFile
+        Iterable[Tuple[pathlib.Path, List[pathlib.Path], List[pathlib.Path]]]: (dirpath, dirnames, filenames)
 
     """
     lg.debug(args2str(locals()))
-    assert remotedir.is_absolute(), f"remotedir must be absolute one: {remotedir}"
+    assert remotetop.is_absolute(), f"remotetop must be absolute one: {remotetop}"
 
-    files: List[SSHFile] = list()
-    for t in ("d", "f"):
-        cmd: str = f"cd {escape(remotedir, extra=True)} && find . -mindepth 1 -maxdepth 1 -type {t} -print0"
+    dirs: List[pathlib.Path] = list()
+    dirs.append(remotetop)
+
+    while dirs:
+        dirpath: pathlib.Path = dirs.pop(0)
+
+        # dirnames
+        cmd: str = f"cd {escape(dirpath, extra=True)} && find . -mindepth 1 -maxdepth 1 -type d -print0"
         cp: CompletedProcess = ctxt.run_sshcmd(cmd, do_wol)
+        dirnames: List[str] = sorted([name for name in cp.stdout.strip(NULLSTR).split(sep=NULLSTR) if name])
+        lg.debug(f"# of dirnames: {len(dirnames)}")
 
-        names: List[str] = sorted([name for name in cp.stdout.strip(NULLSTR).split(sep=NULLSTR) if name])
-        lg.debug(f"# of SSHFile: {len(names)}")
+        # filenames
+        cmd: str = f"cd {escape(dirpath, extra=True)} && find . -mindepth 1 -maxdepth 1 -type f -print0"
+        cp: CompletedProcess = ctxt.run_sshcmd(cmd, do_wol)
+        filenames: List[str] = sorted([name for name in cp.stdout.strip(NULLSTR).split(sep=NULLSTR) if name])
+        lg.debug(f"# of filenames: {len(filenames)}")
 
-        files.extend([SSHFile(remotedir, name, t == "d") for name in names])
+        yield (dirpath, sorted(dirnames), sorted(filenames))
 
-    return files
+        # push dirs
+        dirs.extend([dirpath / name for name in dirnames])
+
+    # end of while
+    return None
 
 
 def ssh_rm(ctxt: SSHContext, rpath: pathlib.Path, do_wol: bool = True) -> None:
