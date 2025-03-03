@@ -235,7 +235,7 @@ def ssh_mv(ctxt: SSHContext, rpath_src: pathlib.Path, rpath_dst: pathlib.Path, d
 
     # rpath_dst's dir may not exist
     _ = ctxt.run_sshcmd(f"mkdir -p {escape(str(rpath_dst.parent), extra=True)}", do_wol)
-    _ = ctxt.run_runcmd(ctxt, f"mv {escape(rpath_src)} {escape(rpath_dst)}")
+    _ = ctxt.run_sshcmd(ctxt, f"mv {escape(rpath_src)} {escape(rpath_dst)}")
 
     return
 
