@@ -22,8 +22,8 @@ class TxIO(io.IOBase):
         self._tmpfile: Optional[pathlib.Path] = None
         self._f: io.IO
 
-        # Start transaction if writeable
-        if ("w" in mode) or ("a" in mode) or ("x" in mode):
+        # Start transaction if appending
+        if "a" in mode:
             tmpname: str = sha512(str(self._orgfile.absolute()).encode()).hexdigest()
             self._tmpfile = pathlib.Path("tmp") / tmpname
 
