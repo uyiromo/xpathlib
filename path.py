@@ -7,20 +7,40 @@ import typing
 from copy import deepcopy
 from fnmatch import fnmatch
 from logging import Logger
-from os import remove
 from typing import Callable, Dict, Iterable, List, Optional, Tuple
 
 from .io import TxRawIO, TxTextIO
 from .logger import args2str, getlg
-from .ssh import SSHContext, SSHFile, scp_from, scp_to, ssh_ls, ssh_mv, ssh_rm, ssh_stat
+from .ssh import SSHContext, scp_from, scp_to, ssh_walk, ssh_mv, ssh_rm, ssh_stat, ssh_rsync
 
 lg: Logger = getlg()
 
-# A marker indicating a file exists ONLY on remote
-DEVZERO: pathlib.Path = pathlib.Path("/dev/zero")
+MODE_NOTCACHED: int = 0o200  # - -w- --- ---
+MODE_CACHED: int = 0o644  # - rw- r-- r--
+MODE_REMOVED: int = 0o000  # - --- --- ---
 
-# A marker indicating a file has been removed from local
-DEVNULL: pathlib.Path = pathlib.Path("/dev/null")
+
+#
+# cache modes
+#
+def get_mode(lpath: pathlib.Path) -> int:
+    """Get mode of a file pointed by `lpath`"""
+    return lpath.stat().st_mode & 0o777
+
+
+def should_keep(lpath: pathlib.Path, keep_patterns: List[str]) -> bool:
+    """True if a file pointed by `lpath` must be kept in local cache"""
+    return any((lpath.full_match(pat) or fnmatch(lpath.name, pat) or (lpath.name == pat)) for pat in keep_patterns)
+
+
+def is_cached(lpath: pathlib.Path) -> bool:
+    """True if a file pointed by `lpath` has been cached"""
+    return lpath.is_dir() or (lpath.is_file() and get_mode(lpath) == MODE_CACHED)
+
+
+def is_removed(lpath: pathlib.Path) -> bool:
+    """True if local file has been removed"""
+    return get_mode(lpath) == MODE_REMOVED
 
 
 class Path(os.PathLike):
@@ -54,21 +74,6 @@ class Path(os.PathLike):
     # cache-related ops
     #
     #
-    def _is_keep(self) -> bool:
-        """True if a file pointed by `self` must be kept in local cache"""
-        lp: Path = self.lpath
-        return any((lp.full_match(pat) or fnmatch(lp.name, pat) or (lp.name == pat)) for pat in self._always_keep)
-
-    def _is_cached(self) -> bool:
-        """True if a file pointed by `self` has been cached (exists and not DEVZERO)"""
-        lp: Path = self.lpath
-        return lp.exists() and (lp.is_file() or lp.is_dir())
-
-    def _is_removed(self) -> bool:
-        """True if local file has been removed (symlink to DEVNULL)"""
-        lp: Path = self.lpath
-        return lp.exists() and (lp.is_symlink() and lp.readlink() == DEVNULL)
-
     def _cache(self):
         """cache a file pointed by `self`
 
@@ -86,59 +91,35 @@ class Path(os.PathLike):
         if not lp.exists():
             # marker does not exist (= not exist on remote)
             lg.debug("lp does not exist. touch()")
-            lp.touch()
+            lp.touch(mode=MODE_CACHED)
         else:
             # marker exists (= exist on remote)
-            if self._is_cached():
-                lg.debug("lp is cached. do nothing")
+            if is_cached(lp):
+                lg.debug("lp has been already cached. do nothing")
                 pass
             else:
-                lg.debug("lp is UNcached. retrieve from remote")
-                lp.unlink(missing_ok=True)
+                lg.debug("lp has NOT been cached. retrieve from remote")
                 scp_from(self._sshctxt, rp, lp)
+                lp.chmod(MODE_CACHED)
 
         return
 
     def _uncache(self):
         """uncache a file pointed by `self`"""
         lg.debug(args2str(locals()))
-        assert self._is_cached(), f"{self.lpath} is not cached!"
+        assert is_cached(self.lpath), f"{self.lpath} is not cached!"
 
         lp: Path = self.lpath
 
-        remove(lp)
-        lp.symlink_to(DEVZERO)
-
-        return
-
-    def _remove(self) -> None:
-        """Remove local file and mark it as removed (symlink to DEVNULL)"""
-        lg.debug(args2str(locals()))
-        lp: Path = self.lpath
-
-        # remove local files
-        dirpath: str
-        dirnames: List[str]
-        filenames: List[str]
-        for dirpath, dirnames, filenames in os.walk(lp, topdown=False):
-            for filename in filenames:
-                p: pathlib.Path = pathlib.Path(os.path.join(dirpath, filename))
-                if p.is_symlink():
-                    p.unlink()
-                else:
-                    remove(p)
-
-            for dirname in dirnames:
-                os.rmdir(os.path.join(dirpath, dirname))
-
-        # mark as removed
-        lp.symlink_to(DEVNULL)
+        lp.unlink()
+        lp.touch(mode=MODE_NOTCACHED)
 
         return
 
     def _sync_core(self) -> None:
         """core ops for sync(), do ssh ops without WOL"""
         lg.debug(args2str(locals()))
+        assert self.lpath.is_dir(), f"{self.lpath} is not a directory!"
 
         # each file state is one of the following:
         # 1. removed
@@ -148,27 +129,42 @@ class Path(os.PathLike):
         # 3. file
         #    -> sync if cached
 
-        if self._is_removed():
-            ssh_rm(self._sshctxt, self.rpath, do_wol=False)
-            self.lpath.unlink(missing_ok=False)
+        dirpath: str
+        dirnames: List[str]
+        filenames: List[str]
+        for dirpath, dirnames, filenames in os.walk(self.lpath):
+            ldirpath: pathlib.Path = pathlib.Path(dirpath)
+            rdirpath: pathlib.Path = self.rpath / pathlib.Path(ldirpath).relative_to(self.lpath)
+            lg.info(f"_sync_core: ldirpath={dirpath} => rdirpath={rdirpath}")
 
-        elif self.lpath.is_dir():
-            lg.info(f"_sync_core: {self}")
-            for f in self.iterdir():
-                f._sync_core()
+            # check removed dirs
+            removed_dirs: List[str] = [d for d in dirnames if is_removed(ldirpath / d)]
+            for dirname in removed_dirs:
+                ssh_rm(self._sshctxt, rdirpath / dirname, do_wol=False)
+                ldirpath.rmdir()
+                dirnames.remove(dirname)
 
-        else:
-            if self._is_cached():
-                scp_to(self._sshctxt, self.lpath, self.rpath, do_wol=False)
+            # sync cached files
+            cached_files: List[str] = [f for f in filenames if is_cached(ldirpath / f)]
+            removed_files: List[str] = [f for f in filenames if is_removed(ldirpath / f)]
 
-                # delete cache if necessary
-                if self._is_keep():
+            # sync & update cache
+            ssh_rsync(self._sshctxt, ldirpath, rdirpath, cached_files, do_wol=False)
+            for f in cached_files:
+                lp: pathlib.Path = ldirpath / f
+                if should_keep(lp, self._always_keep):
                     pass
                 else:
-                    self._uncache()
-            else:
-                # do nothing if not yet cached
-                pass
+                    lp.unlink()
+                    lp.touch(mode=MODE_NOTCACHED)
+
+            # removed files
+            for f in removed_files:
+                lp: pathlib.Path = ldirpath / f
+                rp: pathlib.Path = rdirpath / f
+
+                ssh_rm(self._sshctxt, rp, do_wol=False)
+                lp.unlink()
 
         return
 
@@ -186,30 +182,29 @@ class Path(os.PathLike):
 
         self.lpath.mkdir(exist_ok=True, parents=True)
 
-        file: SSHFile
-        for file in ssh_ls(self._sshctxt, self.rpath, do_wol=False):
-            lg.debug(f"file: {file}")
+        rdirpath: pathlib.Path
+        dirnames: List[str]
+        filenames: List[str]
+        for rdirpath, dirnames, filenames in ssh_walk(self._sshctxt, self.rpath, do_wol=False):
+            lg.info(f"_buildcache_core: rdirpath={rdirpath}")
+            ldirpath: pathlib.Path = self.lpath / rdirpath.relative_to(self.rpath)
 
-            p: Path = self / file.name
-            if file.isdir:
-                lg.info(f"_buildcache_core: {p}")
-                p._buildcache_core()
-            else:
-                # if not exists, create a marker
-                lp: Path = p.lpath
-                rp: Path = p.rpath
+            for dirname in dirnames:
+                p: pathlib.Path = ldirpath / dirname
+                p.mkdir(exist_ok=True)
 
-                # mark as "exists on remote"
-                if not lp.exists():
-                    lp.symlink_to(DEVZERO)
-                else:
-                    pass
+            for filename in filenames:
+                rp: pathlib.Path = rdirpath / filename
+                lp: pathlib.Path = ldirpath / filename
+
+                # mark as NOTCACHED
+                lp.touch(mode=MODE_NOTCACHED)
 
                 # retrieve if required
-                keep: bool = p._is_keep()
+                keep: bool = should_keep(p, self._always_keep)
                 lg.debug(f"keep: {keep}")
                 if keep:
-                    lg.info(f"_buildcache_core: keep::{p}")
+                    lg.debug(f"_buildcache_core: p={p}")
                     scp_from(self._sshctxt, rp, lp, do_wol=False)
                 else:
                     pass
@@ -485,7 +480,7 @@ class Path(os.PathLike):
     # Concrete pathes: Querying file type and status
     #
     def stat(self, *, follow_symlinks: bool = True) -> os.stat_result:
-        if self._is_cached():
+        if is_cached(self.lpath):
             return self.lpath.stat()
         else:
             return ssh_stat(self._sshctxt, self.rpath)
@@ -495,14 +490,14 @@ class Path(os.PathLike):
 
     def exists(self) -> bool:
         """Return True if the file exists and NOT removed"""
-        return self._is_cached() or (self.lpath.exists() and not self._is_removed())
+        return self.lpath.exists() and not is_removed(self.lpath)
 
     def is_file(self, *, follow_symlinks: bool = True) -> bool:
-        assert self._is_cached(), f"{self.lpath} is not cached!"
+        assert is_cached(self.lpath), f"{self.lpath} is not cached!"
         return self.lpath.is_file()
 
     def is_dir(self, *, follow_symlinks: bool = True) -> bool:
-        assert self._is_cached(), f"{self.lpath} is not cached!"
+        assert is_cached(self.lpath), f"{self.lpath} is not cached!"
         return self.lpath.is_dir()
 
     def is_symlink(self) -> bool:
@@ -661,7 +656,7 @@ class Path(os.PathLike):
 
         # remove and mark as REMOVED
         lp.unlink(missing_ok=missing_ok)
-        lp.symlink_to(DEVNULL)
+        lp.touch(mode=MODE_REMOVED)
 
         return
 
@@ -672,7 +667,7 @@ class Path(os.PathLike):
 
         # remove and mark as REMOVED
         lp.rmdir()
-        lp.symlink_to(DEVNULL)
+        lp.mkdir(mode=MODE_REMOVED)
 
         return
 
