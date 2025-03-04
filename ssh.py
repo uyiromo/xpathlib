@@ -4,13 +4,12 @@ import os
 import pathlib
 import struct
 from base64 import b64decode, b64encode
-from dataclasses import dataclass
 from logging import Logger
 from pickle import loads
 from socket import AF_INET, IPPROTO_UDP, SO_BROADCAST, SOCK_DGRAM, SOL_SOCKET, socket
 from subprocess import CompletedProcess, run
 from time import sleep
-from typing import List, Iterable, Tuple
+from typing import Iterable, List, Tuple
 
 from .logger import args2str, getlg
 
