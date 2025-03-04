@@ -68,8 +68,8 @@ class SSHContext:
             sock.setsockopt(SOL_SOCKET, SO_BROADCAST, 1)
             sock.sendto(self.wolpacket, (self.broadcastaddr, 7))
 
-        # wait for wakeup
-        while True:
+        # wait for wakeup (up to 300s)
+        for i in range(30):
             cp: CompletedProcess = run(self.nccmd, shell=True, capture_output=True, text=True, check=False)
             lg.debug(f"send nc: '{self.nccmd}', returncode: '{cp.returncode}'")
             if cp.returncode == 0:
@@ -77,6 +77,7 @@ class SSHContext:
             else:
                 sleep(10)
 
+        _ = run(self.nccmd, shell=True, capture_output=True, text=True, check=True)
         return
 
     def run_sshcmd(self, cmd: str, do_wol: bool) -> CompletedProcess:
