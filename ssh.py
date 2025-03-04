@@ -112,6 +112,38 @@ class SSHContext:
         return runcmd(f"scp {CM_ARGS} {escape(s_lp)} {self.host}:{escape(s_rp)}")
 
 
+def ssh_rsync(
+    ctxt: SSHContext, ldirpath: pathlib.Path, rdirpath: pathlib.Path, filenames: List[str], do_wol: bool = True
+) -> None:
+    """rsync
+
+    Args:
+        ctxt (obj:`SSHContext`): SSHContext
+        ldirpath (obj:`pathlib.Path`): local dir path
+        rdirpath (obj:`pathlib.Path`): remote dir path
+        filenames (obj:`List[str]`): filenames
+        do_wol (obj:`bool`): True if wake-on-LAN
+
+    Returns:
+        None
+
+    """
+    lg.debug(args2str(locals()))
+    assert (
+        ldirpath.is_absolute() and rdirpath.is_absolute()
+    ), f"ldirpath and rdirpath must be absolute ones: {ldirpath}, {rdirpath}"
+
+    # rpath's dir may not exist
+    _ = ctxt.run_sshcmd(f"mkdir -p {escape(str(rdirpath), extra=True)}", do_wol)
+
+    cmd: str = f"rsync -avz --files-from=- --from0 -e ssh {escape(ldirpath)} {ctxt.host}:{escape(rdirpath)}"
+
+    lg.debug(f"cmd: {cmd}")
+    _ = run(cmd, shell=True, capture_output=True, text=True, check=True, input=NULLSTR.join(filenames))
+
+    return
+
+
 def ssh_walk(
     ctxt: SSHContext, remotetop: pathlib.Path, do_wol: bool = True
 ) -> Iterable[Tuple[pathlib.Path, List[str], List[str]]]:
