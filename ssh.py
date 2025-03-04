@@ -55,8 +55,7 @@ class SSHContext:
 
         # build wolpacket
         # 0xFF x6 + macaddr x16
-        macaddr_hex: List[int] = [int(x, base=16) for x in macaddr.split(":")]
-        self.wolpacket: bytes = struct.pack("!6B", *[0xFF] * 6) + struct.pack("!96B", *macaddr_hex * 16)
+        self.wolpacket: bytes = struct.pack("!6B", *[0xFF] * 6) + (bytes.fromhex(macaddr.replace(":", "")) * 16)
 
         # build nccmd
         self.nccmd: str = f"nc -v -w 1 {self.ipaddr} -z 22"
