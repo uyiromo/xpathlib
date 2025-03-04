@@ -11,7 +11,7 @@ from typing import Callable, Dict, Iterable, List, Optional, Tuple
 
 from .io import TxRawIO, TxTextIO
 from .logger import args2str, getlg
-from .ssh import SSHContext, scp_from, scp_to, ssh_walk, ssh_mv, ssh_rm, ssh_stat
+from .ssh import SSHContext, scp_from, scp_to, ssh_walk, ssh_mv, ssh_rm, ssh_stat, ssh_rsync
 
 lg: Logger = getlg()
 
@@ -137,31 +137,34 @@ class Path(os.PathLike):
             rdirpath: pathlib.Path = self.rpath / pathlib.Path(ldirpath).relative_to(self.lpath)
             lg.info(f"_sync_core: ldirpath={dirpath} => rdirpath={rdirpath}")
 
-            for dirname in dirnames:
-                lp: pathlib.Path = ldirpath / dirname
-                rp: pathlib.Path = rdirpath / dirname
+            # check removed dirs
+            removed_dirs: List[str] = [d for d in dirnames if is_removed(ldirpath / d)]
+            for dirname in removed_dirs:
+                ssh_rm(self._sshctxt, rdirpath / dirname, do_wol=False)
+                ldirpath.rmdir()
+                dirnames.remove(dirname)
 
-                if is_removed(lp):
-                    ssh_rm(self._sshctxt, rp, do_wol=False)
-                    lp.rmdir()
-                else:
+            # sync cached files
+            cached_files: List[str] = [f for f in filenames if is_cached(ldirpath / f)]
+            removed_files: List[str] = [f for f in filenames if is_removed(ldirpath / f)]
+
+            # sync & update cache
+            ssh_rsync(self._sshctxt, ldirpath, rdirpath, cached_files, do_wol=False)
+            for f in cached_files:
+                lp: pathlib.Path = ldirpath / f
+                if should_keep(lp, self._always_keep):
                     pass
-
-            for filename in filenames:
-                rp: pathlib.Path = rdirpath / filename
-                lp: pathlib.Path = ldirpath / filename
-
-                if is_cached(lp):
-                    scp_to(self._sshctxt, lp, rp, do_wol=False)
-
-                    # delete cache if necessary
-                    if should_keep(lp, self._always_keep):
-                        pass
-                    else:
-                        lp.unlink()
-                        lp.touch(mode=MODE_NOTCACHED)
                 else:
-                    pass
+                    lp.unlink()
+                    lp.touch(mode=MODE_NOTCACHED)
+
+            # removed files
+            for f in removed_files:
+                lp: pathlib.Path = ldirpath / f
+                rp: pathlib.Path = rdirpath / f
+
+                ssh_rm(self._sshctxt, rp, do_wol=False)
+                lp.unlink()
 
         return
 
