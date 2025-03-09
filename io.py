@@ -25,7 +25,9 @@ class TxIO(io.IOBase):
         # Start transaction if appending
         if "a" in mode:
             tmpname: str = sha512(str(self._orgfile.absolute()).encode()).hexdigest()
-            self._tmpfile = pathlib.Path("/tmp") / tmpname
+
+            cachedir: pathlib.Path = pathlib.Path(os.environ["HOME"]) / ".cache" / "txio"
+            self._tmpfile = cachedir / tmpname
 
             # copy original file to tmpfile
             if self._orgfile.exists():
