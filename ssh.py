@@ -87,7 +87,13 @@ class SSHContext:
         else:
             pass
 
-        return runcmd(f'ssh {self.host} {CM_ARGS} "{cmd}"')
+        sshbin: str
+        if "SSHBIN" in os.environ:
+            sshbin = os.environ["SSHBIN"]
+        else:
+            sshbin = "ssh"
+
+        return runcmd(f'{sshbin} {self.host} {CM_ARGS} "{cmd}"')
 
     def run_scpfrom(self, rpath: pathlib.Path, lpath: pathlib.Path, do_wol: bool) -> CompletedProcess:
         lg.debug(args2str(locals()))
@@ -96,9 +102,15 @@ class SSHContext:
         else:
             pass
 
+        scpbin: str
+        if "SCPBIN" in os.environ:
+            scpbin = os.environ["SCPBIN"]
+        else:
+            scpbin = "scp"
+
         s_rp: str = str(rpath.absolute())
         s_lp: str = str(lpath.absolute())
-        return runcmd(f"scp {CM_ARGS} {self.host}:{escape(s_rp)} {escape(s_lp)}")
+        return runcmd(f"{scpbin} {CM_ARGS} {self.host}:{escape(s_rp)} {escape(s_lp)}")
 
     def run_scpto(self, lpath: pathlib.Path, rpath: pathlib.Path, do_wol: bool) -> CompletedProcess:
         lg.debug(args2str(locals()))
@@ -107,9 +119,15 @@ class SSHContext:
         else:
             pass
 
+        scpbin: str
+        if "SCPBIN" in os.environ:
+            scpbin = os.environ["SCPBIN"]
+        else:
+            scpbin = "scp"
+
         s_lp: str = str(lpath.absolute())
         s_rp: str = str(rpath.absolute())
-        return runcmd(f"scp {CM_ARGS} {escape(s_lp)} {self.host}:{escape(s_rp)}")
+        return runcmd(f"{scpbin} {CM_ARGS} {escape(s_lp)} {self.host}:{escape(s_rp)}")
 
 
 def ssh_rsync(
