@@ -136,7 +136,11 @@ def ssh_rsync(
     # rpath's dir may not exist
     _ = ctxt.run_sshcmd(f"mkdir -p {escape(str(rdirpath), extra=True)}", do_wol)
 
-    cmd: str = f"rsync -avz --files-from=- --from0 -e ssh {escape(ldirpath)} {ctxt.host}:{escape(rdirpath)}"
+    rdirpath_safe: str = escape(rdirpath)
+    rdirpath_safe = rdirpath_safe.replace("[", "\\[")
+    rdirpath_safe = rdirpath_safe.replace("]", "\\]")
+
+    cmd: str = f"rsync -avz --files-from=- --from0 -e ssh {escape(ldirpath)} {ctxt.host}:{rdirpath_safe}"
 
     lg.debug(f"cmd: {cmd}")
     _ = run(cmd, shell=True, capture_output=True, text=True, check=True, input=NULLSTR.join(filenames))
