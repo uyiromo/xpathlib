@@ -11,7 +11,7 @@ from typing import Callable, Dict, Iterable, List, Optional, Tuple
 
 from .io import TxRawIO, TxTextIO
 from .logger import args2str, getlg
-from .ssh import SSHContext, scp_from, ssh_mv, ssh_rm, ssh_rsync, ssh_stat, ssh_walk
+from .ssh import SSHContext, scp_from, ssh_mv, ssh_rm, ssh_rsync, ssh_walk
 
 lg: Logger = getlg()
 
