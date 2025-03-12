@@ -27,6 +27,7 @@ class TxIO(io.IOBase):
             tmpname: str = sha512(str(self._orgfile.absolute()).encode()).hexdigest()
 
             cachedir: pathlib.Path = pathlib.Path(os.environ["HOME"]) / ".cache" / "txio"
+            cachedir.mkdir(parents=True, exist_ok=True)
             self._tmpfile = cachedir / tmpname
 
             # copy original file to tmpfile
