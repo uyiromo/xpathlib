@@ -480,10 +480,8 @@ class Path(os.PathLike):
     # Concrete pathes: Querying file type and status
     #
     def stat(self, *, follow_symlinks: bool = True) -> os.stat_result:
-        if is_cached(self.lpath):
-            return self.lpath.stat()
-        else:
-            return ssh_stat(self._sshctxt, self.rpath)
+        assert is_cached(self.lpath), f"{self.lpath} is not cached!"
+        return self.lpath.stat()
 
     def lstat(self) -> os.stat_result:
         raise NotImplementedError()
