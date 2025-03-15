@@ -203,7 +203,7 @@ class Path(os.PathLike):
                 lp.touch(mode=MODE_NOTCACHED)
 
                 # retrieve if required
-                keep: bool = should_keep(p, self._always_keep)
+                keep: bool = should_keep(lp, self._always_keep)
                 lg.debug(f"keep: {keep}")
                 if keep:
                     lg.debug(f"_buildcache_core: p={p}")
