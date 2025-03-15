@@ -208,6 +208,7 @@ class Path(os.PathLike):
                 if keep:
                     lg.debug(f"_buildcache_core: p={p}")
                     scp_from(self._sshctxt, rp, lp, do_wol=False)
+                    lp.chmod(mode=MODE_CACHED)
                 else:
                     pass
 
