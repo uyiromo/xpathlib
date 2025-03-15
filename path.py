@@ -11,7 +11,7 @@ from typing import Callable, Dict, Iterable, List, Optional, Tuple
 
 from .io import TxRawIO, TxTextIO
 from .logger import args2str, getlg
-from .ssh import SSHContext, scp_from, ssh_mv, ssh_rm, ssh_rsync, ssh_walk
+from .ssh import SSHContext, scp_from, scp_to, ssh_mv, ssh_rm, ssh_walk
 
 lg: Logger = getlg()
 
@@ -134,7 +134,7 @@ class Path(os.PathLike):
         filenames: List[str]
         for dirpath, dirnames, filenames in os.walk(self.lpath):
             ldirpath: pathlib.Path = pathlib.Path(dirpath)
-            rdirpath: pathlib.Path = self.rpath / pathlib.Path(ldirpath).relative_to(self.lpath)
+            rdirpath: pathlib.Path = self.rpath / ldirpath.relative_to(self.lpath)
             lg.info(f"_sync_core: ldirpath={dirpath} => rdirpath={rdirpath}")
 
             # check removed dirs
@@ -149,9 +149,11 @@ class Path(os.PathLike):
             removed_files: List[str] = [f for f in filenames if is_removed(ldirpath / f)]
 
             # sync & update cache
-            ssh_rsync(self._sshctxt, ldirpath, rdirpath, cached_files, do_wol=False)
             for f in cached_files:
                 lp: pathlib.Path = ldirpath / f
+                rp: pathlib.Path = rdirpath / f
+
+                scp_to(self._sshctxt, lp, rp, do_wol=False)
                 if should_keep(lp, self._always_keep):
                     pass
                 else:
