@@ -1,4 +1,4 @@
-import stylisticJs from '/home/uyiromo/node_modules/@stylistic/eslint-plugin-js/dist/index.js'
+import stylisticJs from '/usr/lib/node_modules/@stylistic/eslint-plugin-js/dist/index.js'
 
 export default [
     {

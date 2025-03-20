@@ -1,0 +1,36 @@
+# markdown
+md = [ "*.md", "**/*.md" ]
+
+# python
+py = [ "*.py", "**/*.py" ]
+
+# shell
+sh = [ "*.sh", "**/*.sh" ]
+
+# toml
+toml = [ "*.toml", "**/*.toml" ]
+
+# yaml
+yaml = [ "*.yaml", "**/*.yaml", "*.yml", "**/*.yml" ]
+
+# json
+json = [ "*.json", "**/*.json" ]
+
+# javascript
+javascript = [ "*.js", "**/*.js", "*.mjs", "**/*.mjs" ]
+
+# Dockerfile
+dockerfile = [ "Dockerfile", "**/Dockerfile" ]
+
+# NO LINT, NO FOMRMAT
+none = [
+  ".flake8",
+  "requirements.txt",
+  "**/requirements.txt",
+  ".editorconfig",
+  ".gitignore",
+  ".gitmodules",
+  "*.cron",
+  ".yamlfmt",
+  "LICENSE"
+]
