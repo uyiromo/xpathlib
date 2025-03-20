@@ -587,7 +587,7 @@ class Path(os.PathLike):
         case_sensitive: Optional[bool] = None,
         recurse_symlinks: bool = False,
     ) -> Iterable[Path]:
-        raise NotImplementedError()
+        return self.lpath.glob(pattern, case_sensitive=case_sensitive, recurse_symlinks=recurse_symlinks)
 
     def rglob(
         self,
