@@ -19,17 +19,17 @@ json = [ "**/*.json", "*.json" ]
 # javascript
 javascript = [ "**/*.js", "**/*.mjs", "*.js", "*.mjs" ]
 
-# zsh
-zsh = [  ]
+# Dockerfile
+dockerfile = [ "**/Dockerfile", "Dockerfile" ]
 
 # NO LINT, NO FOMRMAT
 none = [
+  "**/requirements.txt",
   "*.cron",
   ".editorconfig",
   ".flake8",
   ".gitignore",
   ".gitmodules",
-  ".skipmodules",
   ".yamlfmt",
   "LICENSE",
   "requirements.txt",
