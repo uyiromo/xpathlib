@@ -9,7 +9,7 @@ from fnmatch import fnmatch
 from logging import Logger
 from typing import Callable, Dict, Iterable, List, Optional, Tuple, Sequence, Generator
 
-from .io import TxRawIO, TxTextIO
+from .txio import TxRawIO, TxTextIO
 from .logger import args2str, getlg
 from .ssh import SSHContext, scp_from, scp_to, ssh_mv, ssh_rm, ssh_walk
 
