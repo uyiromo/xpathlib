@@ -7,7 +7,7 @@ import typing
 from copy import deepcopy
 from fnmatch import fnmatch
 from logging import Logger
-from typing import Callable, Dict, Iterable, List, Optional, Tuple
+from typing import Callable, Dict, Iterable, List, Optional, Tuple, Sequence, Generator
 
 from .io import TxRawIO, TxTextIO
 from .logger import args2str, getlg
@@ -162,11 +162,11 @@ class Path(os.PathLike):
 
             # removed files
             for f in removed_files:
-                lp: pathlib.Path = ldirpath / f
-                rp: pathlib.Path = rdirpath / f
+                lp2: pathlib.Path = ldirpath / f
+                rp2: pathlib.Path = rdirpath / f
 
-                ssh_rm(self._sshctxt, rp, do_wol=False)
-                lp.unlink()
+                ssh_rm(self._sshctxt, rp2, do_wol=False)
+                lp2.unlink()
 
         return
 
@@ -226,11 +226,11 @@ class Path(os.PathLike):
 
     def _clone(self) -> Path:
         new: Path = object.__new__(type(self))
-        new._sshctxt: SSHContext = self._sshctxt
-        new._cacheroot: pathlib.Path = self._cacheroot
-        new._remoteroot: pathlib.Path = self._remoteroot
-        new._relpath: Path = self._relpath
-        new._always_keep: List[str] = self._always_keep
+        new._sshctxt = self._sshctxt
+        new._cacheroot = self._cacheroot
+        new._remoteroot = self._remoteroot
+        new._relpath = self._relpath
+        new._always_keep = self._always_keep
 
         return new
 
@@ -285,7 +285,7 @@ class Path(os.PathLike):
         # to Path
         remoteroot: pathlib.Path = pathlib.Path(data["REMOTEROOT"]).expanduser()
         cacheroot: pathlib.Path = pathlib.Path(data["CACHEROOT"]).expanduser()
-        relpath: pathlib.Path = pathlib.Path(relpath).expanduser()
+        relpath_expanded: pathlib.Path = pathlib.Path(relpath).expanduser()
 
         sshctxt: SSHContext = SSHContext(
             data["SSHHOST"],
@@ -299,7 +299,7 @@ class Path(os.PathLike):
         self._sshctxt = sshctxt
         self._cacheroot = cacheroot
         self._remoteroot = remoteroot
-        self._relpath = relpath
+        self._relpath = relpath_expanded
         self._always_keep = deepcopy(always_keep)
         self._always_keep.append(".built")
 
@@ -325,9 +325,11 @@ class Path(os.PathLike):
     #
     # PurePath: General properties
     #
-    def __eq__(self, other: Path) -> bool:
-        assert isinstance(other, Path), f"unsupported operand type(s) for ==: 'xpathlib.Path' and '{type(other)}'"
-        return self.__hash__() == other.__hash__()
+    def __eq__(self, other: object) -> bool:
+        if not isinstance(other, Path):
+            return self.__hash__() == other.__hash__()
+        else:
+            return False
 
     def __hash__(self) -> int:
         return hash(self.lpath)
@@ -341,7 +343,7 @@ class Path(os.PathLike):
     #
     def __truediv__(self, subpath: str | os.PathLike) -> Path:
         new: Path = self._clone()
-        new._relpath: Path = self._relpath / subpath
+        new._relpath = self._relpath / subpath
 
         return new
 
@@ -357,7 +359,7 @@ class Path(os.PathLike):
     #
     @property
     def parser(self) -> pathlib.PurePosixPath:
-        return self._relpath.parser
+        return pathlib.PurePosixPath(self._relpath)
 
     @property
     def drive(self) -> str:
@@ -372,7 +374,7 @@ class Path(os.PathLike):
         return self._relpath.anchor
 
     @property
-    def parents(self) -> pathlib.Path:
+    def parents(self) -> Sequence[pathlib.Path]:
         return self._relpath.parents
 
     @property
@@ -545,9 +547,9 @@ class Path(os.PathLike):
             pass
 
         if "b" in mode:
-            return TxRawIO(self.lpath, mode, buffering, None, None, None)
+            return TxRawIO(self.lpath, mode, buffering, None, None, None)  # type: ignore[return-value]
         else:
-            return TxTextIO(self.lpath, mode, buffering, encoding, errors, newline)
+            return TxTextIO(self.lpath, mode, buffering, encoding, errors, newline)  # type: ignore[return-value]
 
     def read_text(
         self, encoding: Optional[str] = None, errors: Optional[str] = None, newline: Optional[str] = None
@@ -586,7 +588,7 @@ class Path(os.PathLike):
         *,
         case_sensitive: Optional[bool] = None,
         recurse_symlinks: bool = False,
-    ) -> Iterable[Path]:
+    ) -> Generator[Path, None, None]:
         return self.lpath.glob(pattern, case_sensitive=case_sensitive, recurse_symlinks=recurse_symlinks)
 
     def rglob(
@@ -617,7 +619,7 @@ class Path(os.PathLike):
         self.lpath.touch(mode=mode, exist_ok=exist_ok)
 
     def mkdir(self, mode: int = 0o777, parents: bool = False, exist_ok: bool = False) -> None:
-        lpath: Path = self.lpath
+        lpath: pathlib.Path = self.lpath
         lpath.mkdir(mode=mode, parents=parents, exist_ok=exist_ok)
 
         return

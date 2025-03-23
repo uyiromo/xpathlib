@@ -1,10 +1,11 @@
 from __future__ import annotations
 
 import io
+import collections
 import os
 import pathlib
 from hashlib import sha512
-from typing import IO, List, Optional, Tuple
+import typing
 
 
 class TxIO(io.IOBase):
@@ -14,13 +15,13 @@ class TxIO(io.IOBase):
         file: pathlib.Path,
         mode: str,
         buffering: int,
-        encoding: Optional[str],
-        errors: Optional[str],
-        newline: Optional[str],
+        encoding: typing.Optional[str],
+        errors: typing.Optional[str],
+        newline: typing.Optional[str],
     ):
         self._orgfile: pathlib.Path = file
-        self._tmpfile: Optional[pathlib.Path] = None
-        self._f: io.IO
+        self._tmpfile: typing.Optional[pathlib.Path] = None
+        self._f: typing.IO
 
         # Start transaction if appending
         if "a" in mode:
@@ -36,10 +37,25 @@ class TxIO(io.IOBase):
             else:
                 self._tmpfile.touch()
 
-            self._f: IO = self._tmpfile.open(mode, buffering, encoding, errors, newline)
+            self._f = self._tmpfile.open(mode, buffering, encoding, errors, newline)
         else:
-            self._f: IO = self._orgfile.open(mode, buffering, encoding, errors, newline)
+            self._f = self._orgfile.open(mode, buffering, encoding, errors, newline)
 
+    #
+    # stubs
+    #
+    def fileno(self) -> int:
+        return self._f.fileno()
+
+    def seek(self, offset: int, whence: int = os.SEEK_SET) -> int:
+        return self._f.seek(offset, whence)
+
+    def truncate(self, size: typing.Optional[int] = None) -> int:
+        return self._f.truncate(size)
+
+    #
+    # Mixin methods
+    #
     def close(self) -> None:
         """End transaction"""
         if self._tmpfile:
@@ -63,26 +79,26 @@ class TxIO(io.IOBase):
 
         return exc_type is None
 
-    def fileno(self) -> int:
-        return self._f.fileno()
-
     def flush(self) -> None:
         self._f.flush()
 
     def isatty(self) -> bool:
         return self._f.isatty()
 
+    def __iter__(self) -> typing.Iterator[typing.Any]:
+        return iter(self._f)
+
+    def __next__(self) -> typing.Any:
+        return next(self._f)
+
     def readable(self) -> bool:
         return self._f.readable()
 
-    def readline(self, size: int = -1) -> bytes:
-        return self._f.readline(size)
+    def readline(self, size: int | None = -1) -> typing.AnyStr:  # type: ignore[type-var]
+        return self._f.readline(size if size is not None else -1)
 
-    def readlines(self, hint: int = -1) -> List[bytes]:
+    def readlines(self, hint: int = -1) -> list[str]:  # type: ignore[misc, override]
         return self._f.readlines(hint)
-
-    def seek(self, offset: int, whence: int = os.SEEK_SET) -> int:
-        return self._f.seek(offset, whence)
 
     def seekable(self) -> bool:
         return self._f.seekable()
@@ -90,57 +106,82 @@ class TxIO(io.IOBase):
     def tell(self) -> int:
         return self._f.tell()
 
-    def truncate(self, size: Optional[int] = None) -> int:
-        return self._f.truncate(size)
-
     def writable(self) -> bool:
         return self._f.writable()
 
-    def writelines(self, lines: List[bytes]) -> None:
-        return self._f.writelines(lines)
+    def writelines(self, lines: typing.Iterable[typing.Any]) -> None:
+        self._f.writelines(lines)
 
 
-class TxRawIO(TxIO):
+class TxRawIO(io.RawIOBase, TxIO):
 
-    def read(self, size: int = -1) -> bytes:
-        return self._f.read(size)
+    def __init__(
+        self,
+        file: pathlib.Path,
+        mode: str,
+        buffering: int,
+        encoding: typing.Optional[str],
+        errors: typing.Optional[str],
+        newline: typing.Optional[str],
+    ):
+        super().__init__(file, mode, buffering, encoding, errors, newline)
+        self._f: typing.BinaryIO  # type: ignore[assignment]
 
-    def readall(self) -> bytes:
-        return self._f.readall()
+    #
+    # stubs
+    #
 
-    def readinto(self, b: bytearray) -> int:
-        return self._f.readinto(b)
-
-    def write(self, b: bytes) -> int:
+    def write(self, b: collections.abc.Buffer) -> int:
         return self._f.write(b)
 
+    #
+    # Mixin methods
+    #
+    def read(self, size: int | None = -1) -> bytes:
+        return self._f.read(size if size is not None else -1)
 
-class TxTextIO(TxIO):
+    def readall(self) -> bytes:
+        return self._f.read()
 
-    @property
-    def encoding(self) -> str:
-        return self._f.encoding
 
-    @property
-    def errors(self) -> str:
-        return self._f.errors
+class TxTextIO(io.TextIOBase, TxIO):
 
-    @property
-    def newlines(self) -> Optional[str | Tuple[str]]:
-        return self._f.newlines
+    def __init__(
+        self,
+        file: pathlib.Path,
+        mode: str,
+        buffering: int,
+        encoding: typing.Optional[str],
+        errors: typing.Optional[str],
+        newline: typing.Optional[str],
+    ):
+        super().__init__(file, mode, buffering, encoding, errors, newline)
+        self._f: typing.TextIO  # type: ignore[assignment]
+
+    # @property
+    # def encoding(self) -> str:
+    #    return self._f.encoding
+
+    # @property
+    # def errors(self) -> typing.Optional[str]:
+    #    return self._f.errors
+
+    # @property
+    # def newlines(self) -> typing.Any:
+    #    return self._f.newlines
 
     # @property
     # def buffer(self) -> io.BufferedIOBase:
     #    return self._f.buffer
 
-    def detach(self) -> io.RawIOBase:
-        return self._f.detach()
+    # def detach(self) -> typing.BinaryIO:  # type: ignore[attr-defined]
+    #    return self._f.detach()
 
-    def read(self, size: int = -1) -> str:
-        return self._f.read(size)
+    def read(self, size: int | None = -1) -> str:
+        return self._f.read(size if size else -1)
 
-    def readline(self, size: int = -1) -> str:
-        return self._f.readline(size)
+    def readline(self, size: int | None = -1) -> str:  # type: ignore[override, arg-type]
+        return self._f.readline(size if size else -1)
 
     def seek(self, offset: int, whence: int = os.SEEK_SET) -> int:
         return self._f.seek(offset, whence)

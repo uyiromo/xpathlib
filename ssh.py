@@ -63,7 +63,7 @@ class SSHContext:
         """Wake-on-LAN"""
         lg.debug(args2str(locals()))
 
-        lg.debug(f"send packet: '{self.wolpacket}' to '{self.broadcastaddr}'")
+        lg.debug(f"send packet: {self.wolpacket!r} to '{self.broadcastaddr}'")
         with socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP) as sock:
             sock.setsockopt(SOL_SOCKET, SO_BROADCAST, 1)
             sock.sendto(self.wolpacket, (self.broadcastaddr, 7))
@@ -108,9 +108,7 @@ class SSHContext:
         else:
             scpbin = "scp"
 
-        s_rp: str = str(rpath.absolute())
-        s_lp: str = str(lpath.absolute())
-        return runcmd(f"{scpbin} {CM_ARGS} {self.host}:{escape(s_rp)} {escape(s_lp)}")
+        return runcmd(f"{scpbin} {CM_ARGS} {self.host}:{escape(rpath.absolute())} {escape(lpath.absolute())}")
 
     def run_scpto(self, lpath: pathlib.Path, rpath: pathlib.Path, do_wol: bool) -> CompletedProcess:
         lg.debug(args2str(locals()))
@@ -125,9 +123,7 @@ class SSHContext:
         else:
             scpbin = "scp"
 
-        s_lp: str = str(lpath.absolute())
-        s_rp: str = str(rpath.absolute())
-        return runcmd(f"{scpbin} {CM_ARGS} {escape(s_lp)} {self.host}:{escape(s_rp)}")
+        return runcmd(f"{scpbin} {CM_ARGS} {escape(lpath.absolute())} {self.host}:{escape(rpath.absolute())}")
 
 
 def ssh_rsync(
@@ -152,7 +148,7 @@ def ssh_rsync(
     ), f"ldirpath and rdirpath must be absolute ones: {ldirpath}, {rdirpath}"
 
     # rpath's dir may not exist
-    _ = ctxt.run_sshcmd(f"mkdir -p {escape(str(rdirpath), extra=True)}", do_wol)
+    _ = ctxt.run_sshcmd(f"mkdir -p {escape(rdirpath, extra=True)}", do_wol)
 
     rdirpath_safe: str = escape(rdirpath)
     rdirpath_safe = rdirpath_safe.replace("[", "\\[")
@@ -190,15 +186,15 @@ def ssh_walk(
         dirpath: pathlib.Path = dirs.pop(0)
 
         # dirnames
-        cmd: str = f"cd {escape(dirpath, extra=True)} && find . -mindepth 1 -maxdepth 1 -type d -print0"
-        cp: CompletedProcess = ctxt.run_sshcmd(cmd, do_wol)
-        dirnames: List[str] = sorted([name for name in cp.stdout.strip(NULLSTR).split(sep=NULLSTR) if name])
+        cmd_d: str = f"cd {escape(dirpath, extra=True)} && find . -mindepth 1 -maxdepth 1 -type d -print0"
+        cp_d: CompletedProcess = ctxt.run_sshcmd(cmd_d, do_wol)
+        dirnames: List[str] = sorted([name for name in cp_d.stdout.strip(NULLSTR).split(sep=NULLSTR) if name])
         lg.debug(f"# of dirnames: {len(dirnames)}")
 
         # filenames
-        cmd: str = f"cd {escape(dirpath, extra=True)} && find . -mindepth 1 -maxdepth 1 -type f -print0"
-        cp: CompletedProcess = ctxt.run_sshcmd(cmd, do_wol)
-        filenames: List[str] = sorted([name for name in cp.stdout.strip(NULLSTR).split(sep=NULLSTR) if name])
+        cmd_f: str = f"cd {escape(dirpath, extra=True)} && find . -mindepth 1 -maxdepth 1 -type f -print0"
+        cp_f: CompletedProcess = ctxt.run_sshcmd(cmd_f, do_wol)
+        filenames: List[str] = sorted([name for name in cp_f.stdout.strip(NULLSTR).split(sep=NULLSTR) if name])
         lg.debug(f"# of filenames: {len(filenames)}")
 
         yield (dirpath, sorted(dirnames), sorted(filenames))
@@ -271,7 +267,7 @@ def scp_to(ctxt: SSHContext, lpath: pathlib.Path, rpath: pathlib.Path, do_wol: b
     assert lpath.is_absolute() and rpath.is_absolute(), f"lpath and rpath must be absolute ones: {lpath}, {rpath}"
 
     # rpath's dir may not exist
-    _ = ctxt.run_sshcmd(f"mkdir -p {escape(str(rpath.parent), extra=True)}", do_wol)
+    _ = ctxt.run_sshcmd(f"mkdir -p {escape(rpath.parent, extra=True)}", do_wol)
     _ = ctxt.run_scpto(lpath, rpath, do_wol)
 
     return
@@ -296,8 +292,8 @@ def ssh_mv(ctxt: SSHContext, rpath_src: pathlib.Path, rpath_dst: pathlib.Path, d
     ), f"rpath_src and rpath_dst must be absolute ones: {rpath_src}, {rpath_dst}"
 
     # rpath_dst's dir may not exist
-    _ = ctxt.run_sshcmd(f"mkdir -p {escape(str(rpath_dst.parent), extra=True)}", do_wol)
-    _ = ctxt.run_sshcmd(ctxt, f"mv {escape(rpath_src)} {escape(rpath_dst)}")
+    _ = ctxt.run_sshcmd(f"mkdir -p {escape(rpath_dst.parent, extra=True)}", do_wol)
+    _ = ctxt.run_sshcmd(f"mv {escape(rpath_src)} {escape(rpath_dst)}", do_wol)
 
     return
 
