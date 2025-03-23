@@ -1,11 +1,11 @@
 from __future__ import annotations
 
-import io
 import collections
+import io
 import os
 import pathlib
-from hashlib import sha512
 import typing
+from hashlib import sha512
 
 
 class TxIO(io.IOBase):
