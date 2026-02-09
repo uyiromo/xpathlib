@@ -1,0 +1,28 @@
+{
+    "cSpell.words": [
+        "cachedir",
+        "cachestate",
+        "funcname",
+        "localdir",
+        "localfile",
+        "localpath",
+        "logdir",
+        "mypy",
+        "newpath",
+        "NOTCACHED",
+        "oldpath",
+        "paramiko",
+        "remotedir",
+        "remotefile",
+        "remotepath",
+        "uyiromo",
+        "venv",
+        "xpathlib"
+    ],
+    "files.exclude": {
+        "**/__pycache__": true,
+        "**/*.pyc": true,
+        "**/*.pyo": true,
+        "**/.DS_Store": true
+    },
+}

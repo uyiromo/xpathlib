@@ -1,0 +1,36 @@
+[project]
+name = "xpathlib"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "paramiko>=4.0.0",
+]
+
+[tool.ruff]
+exclude = [
+    ".git",
+    ".mypy_cache",
+    ".ruff_cache",
+    ".venv",
+    ".vscode",
+]
+
+fix = true
+indent-width = 4
+line-length = 120
+show-fixes = true
+
+[tool.ruff.format]
+docstring-code-format   = true
+line-ending             = "lf"
+quote-style             = "single"
+
+[tool.ruff.lint]
+select = ["A", "B", "E", "F", "I", "W"]
+fixable = ["ALL"]
+
+[tool.ruff.isort]
+section-order = ["future", "standard-library", "first-party", "local-folder", "third-party"]
+
