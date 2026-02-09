@@ -1,3 +1,3 @@
-import src as xpathlib
+from .src import xpathlib
 
 __all__ = ['xpathlib']
