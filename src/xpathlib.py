@@ -617,7 +617,7 @@ class XFile:
             pass
         else:
             # commit
-            if self._path_tx:
+            if self._path_tx and self._path_tx.exists():
                 if self._path.exists():
                     self._path.chmod(self._path.stat().st_mode)
                 else:
