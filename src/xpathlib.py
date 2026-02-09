@@ -226,6 +226,11 @@ class CacheState(IntEnum):
     N = 0o644
     D = 0o000
 
+    @staticmethod
+    def from_path(p: pathlib.Path) -> CacheState:
+        perm: int = p.stat().st_mode & 0o777
+        return CacheState(perm)
+
 
 # state transitions:
 #
@@ -280,7 +285,7 @@ def transit_cachestate(path: pathlib.Path, mode: str) -> None:
     if not path.exists():
         path.touch(mode=CacheState.N)
     else:
-        current: CacheState = CacheState(path.stat().st_mode & 0o777)
+        current: CacheState = CacheState.from_path(path)
 
         match current:
             case CacheState.M:
@@ -807,7 +812,7 @@ def xpathlib_unlink(self: pathlib.Path) -> None:
         if is_remotefile(self):
             pathlib_unlink(self)
             pathlib_touch(self, mode=CacheState.D)
-        if CacheState(self.stat().st_mode) == CacheState.N:
+        if CacheState.from_path(self) == CacheState.N:
             pathlib_unlink(self)
         else:
             raise RuntimeError(f'Unsupported file perms: {self} ({...})')
