@@ -5,12 +5,12 @@ from .xpathlib import (
     build,
     disable_xpathlib,
     enable_xpathlib,
-    set_loglevel,
+    logger_xpathlib,
     sync_xpathlib,
 )
 
 __all__ = [
-    'set_loglevel',
+    'logger_xpathlib',
     'LogLevel',
     'enable_xpathlib',
     'disable_xpathlib',
