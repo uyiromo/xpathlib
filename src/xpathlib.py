@@ -801,19 +801,19 @@ def xpathlib_replace(self: pathlib.Path, target: pathlib.Path) -> pathlib.Path:
     return xpathlib_rename(self, target)
 
 
-def xpathlib_unlink(self: pathlib.Path) -> None:
+def xpathlib_unlink(self: pathlib.Path, missing_ok: bool = False) -> None:
     assert ctx is not None
     ctx.push('xpathlib_unlink', is_debug=True)
     DEBUG(f'       self: {self}')
 
     if not ctx.is_xpath(self):
-        pathlib_unlink(self)
+        pathlib_unlink(self, missing_ok=missing_ok)
     else:
         if is_remotefile(self):
-            pathlib_unlink(self)
+            pathlib_unlink(self, missing_ok=missing_ok)
             pathlib_touch(self, mode=CacheState.D)
         if CacheState.from_path(self) == CacheState.N:
-            pathlib_unlink(self)
+            pathlib_unlink(self, missing_ok=missing_ok)
         else:
             raise RuntimeError(f'Unsupported file perms: {self} ({...})')
 
