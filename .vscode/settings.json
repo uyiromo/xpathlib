@@ -12,6 +12,7 @@
         "NOTCACHED",
         "oldpath",
         "paramiko",
+        "pathlib",
         "remotedir",
         "remotefile",
         "remotepath",
