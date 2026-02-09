@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import fnmatch
+import functools
 import logging
 import pathlib
 import re
@@ -23,12 +24,24 @@ FMT_INFO = logging.Formatter('%(asctime)s | %(name)s | %(message)s', datefmt='%H
 FMT_DEBUG = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(filename)s:%(lineno)d - %(message)s')
 
 
+def INFO(msg: str) -> None:
+    logger.info(msg, stacklevel=2)
+
+
+def DEBUG(msg: str) -> None:
+    logger.debug(msg, stacklevel=2)
+
+
+def ERROR(msg: str) -> None:
+    logger.error(msg, stacklevel=2)
+
+
 # tx
-SUFFIX_TX: str = '.tx'
+SUFFIX_PART: str = '.xpathlib_part'
 
 
 def resolve_tx(path: pathlib.Path) -> pathlib.Path:
-    return path.with_suffix(path.suffix + SUFFIX_TX)
+    return path.with_suffix(path.suffix + SUFFIX_PART)
 
 
 class LogLevel(Enum):
@@ -83,32 +96,23 @@ class Context(AbstractContextManager):  # pyright: ignore[reportMissingTypeArgum
     def should_keep(self, filename: str) -> bool:
         return any(pat.match(filename) for pat in self.keeps)
 
-    def info(self, msg: str) -> None:
-        self.logger.info(msg, stacklevel=2)
-
-    def debug(self, msg: str) -> None:
-        self.logger.debug(msg, stacklevel=2)
-
-    def error(self, msg: str) -> None:
-        self.logger.error(msg, stacklevel=2)
-
     def push(self, funcname: str, *, is_debug: bool = False) -> None:
         if not is_debug:
-            self.info(f'>> {funcname}')
+            INFO(f'>> {funcname}')
         else:
             pass
 
-        self.debug(f'>> {funcname}')
+        DEBUG(f'>> {funcname}')
 
         return
 
     def pop(self, funcname: str, *, is_debug: bool = False) -> None:
         if not is_debug:
-            self.info(f'<< {funcname}')
+            INFO(f'<< {funcname}')
         else:
             pass
 
-        self.debug(f'<< {funcname}')
+        DEBUG(f'<< {funcname}')
 
         return
 
@@ -207,19 +211,6 @@ class Context(AbstractContextManager):  # pyright: ignore[reportMissingTypeArgum
 ctx: Context | None = None
 
 
-def set_loglevel(level: LogLevel) -> None:
-    """
-    Set the logging level for xpathlib.
-
-    Args:
-        level (LogLevel): The logging level to set.
-    """
-    global logger
-    logger.setLevel(level.value)
-
-    return
-
-
 #
 # cache ops
 #
@@ -229,10 +220,10 @@ def set_loglevel(level: LogLevel) -> None:
 # New        : original file on LOCAL
 # Deleted    : original file on REMOTE, LOCAL one is deleted
 class CacheState(IntEnum):
-    M = 0o644
-    S = 0o664
+    M = 0o664
+    S = 0o666
     I = 0o100  # noqa: E741 (Ambiguous name)
-    N = 0o666
+    N = 0o644
     D = 0o000
 
 
@@ -329,7 +320,7 @@ def _build_core(cachedir: pathlib.Path, remotedir: pathlib.Path) -> None:
     for attr in ctx.sftp_client.listdir_attr(str(remotedir)):
         local_path: pathlib.Path = cachedir / attr.filename
         remote_path: pathlib.Path = remotedir / attr.filename
-        ctx.debug(f"  local_path='{local_path}' remote_path='{remote_path}'")
+        DEBUG(f"  local_path='{local_path}' remote_path='{remote_path}'")
 
         # 1. If dir, recurse
         # 2. If file
@@ -338,26 +329,26 @@ def _build_core(cachedir: pathlib.Path, remotedir: pathlib.Path) -> None:
         #       and if keep, download and set to "S"
         assert attr.st_mode is not None
         if stat.S_ISDIR(attr.st_mode):
-            ctx.debug('  is directory')
+            DEBUG('  is directory')
             _build_core(local_path, remote_path)
         elif stat.S_ISREG(attr.st_mode):
-            ctx.debug('  is regular file')
+            DEBUG('  is regular file')
 
             local_path.parent.mkdir(parents=True, exist_ok=True)
             if local_path.exists():
-                ctx.debug('  already cached, skipping')
+                DEBUG('  already cached, skipping')
                 pass
             else:
-                ctx.debug('  not cached, creating NOTCACHED marker')
+                DEBUG('  not cached, creating NOTCACHED marker')
                 local_path.touch(mode=CacheState.I)
 
                 if ctx.should_keep(attr.filename):
-                    ctx.info(f"  keep: '{remote_path}'")
-                    ctx.debug('  matches keep pattern')
+                    INFO(f"  keep: '{remote_path}'")
+                    DEBUG('  matches keep pattern')
                     ctx.sftp_get(local_path, remote_path)
                     local_path.chmod(CacheState.S)
                 else:
-                    ctx.debug('  does not match keep pattern, leaving as NOTCACHED')
+                    DEBUG('  does not match keep pattern, leaving as NOTCACHED')
         else:
             raise RuntimeError(f'Unsupported file type: {remote_path} ({attr.st_mode})')
 
@@ -377,15 +368,15 @@ def build(cachedir: pathlib.Path, remotedir: pathlib.Path, *, force: bool = Fals
     """
     assert ctx is not None
     ctx.push('build')
-    ctx.info(f'   cachedir: "{cachedir}"')
-    ctx.info(f'  remotedir: "{remotedir}"')
-    ctx.info(f'      force: "{force}"')
+    INFO(f'   cachedir: "{cachedir}"')
+    INFO(f'  remotedir: "{remotedir}"')
+    INFO(f'      force: "{force}"')
 
     marker: pathlib.Path = cachedir / '.built'
     if marker.exists() and not force:
-        ctx.info('  Cache already built, skipping.')
+        INFO('  Cache already built, skipping.')
     else:
-        ctx.info('  Building cache...')
+        INFO('  Building cache...')
 
         s: datetime = datetime.now()
         with ctx:
@@ -393,7 +384,7 @@ def build(cachedir: pathlib.Path, remotedir: pathlib.Path, *, force: bool = Fals
         e: datetime = datetime.now()
 
         elapsed: float = (e - s).total_seconds()
-        ctx.info(f'  Built cache in {elapsed:.2f} seconds.')
+        INFO(f'  Built cache in {elapsed:.2f} seconds.')
         marker.touch()
 
     ctx.pop('build')
@@ -403,38 +394,38 @@ def build(cachedir: pathlib.Path, remotedir: pathlib.Path, *, force: bool = Fals
 def cache(local_path: pathlib.Path, remote_path: pathlib.Path) -> None:
     assert ctx is not None
     ctx.push('cache', is_debug=True)
-    ctx.debug(f'   local_path: {local_path}')
-    ctx.debug(f'  remote_path: {remote_path}')
+    DEBUG(f'   local_path: {local_path}')
+    DEBUG(f'  remote_path: {remote_path}')
 
     if local_path.exists():
         perm: int = local_path.stat().st_mode & 0o777
-        ctx.debug(f'  existing file with perms "{oct(perm)}"')
+        DEBUG(f'  existing file with perms "{oct(perm)}"')
 
         match perm:
             case CacheState.M:
-                ctx.debug('  modified. do nothing')
+                DEBUG('  modified. do nothing')
                 pass
             case CacheState.S:
-                ctx.debug('  shared. do nothing')
+                DEBUG('  shared. do nothing')
                 pass
             case CacheState.I:
-                ctx.debug('  invalidated. caching...')
+                DEBUG('  invalidated. caching...')
                 with ctx:
                     ctx.sftp_get(local_path, remote_path)
 
                 local_path.chmod(CacheState.S)
             case CacheState.N:
-                ctx.debug('  new. do nothing')
+                DEBUG('  new. do nothing')
                 pass
             case CacheState.D:
-                ctx.debug('  deleted. create as new')
+                DEBUG('  deleted. create as new')
                 pathlib_unlink(local_path)
                 pathlib_touch(local_path, mode=CacheState.N)
                 pass
             case _:
                 raise RuntimeError(f'Unsupported file perms: {local_path} ({oct(perm)})')
     else:
-        ctx.debug('  not exists. create as new')
+        DEBUG('  not exists. create as new')
         local_path.parent.mkdir(parents=True, exist_ok=True)
         pathlib_touch(local_path, mode=CacheState.N)
 
@@ -445,21 +436,25 @@ def cache(local_path: pathlib.Path, remote_path: pathlib.Path) -> None:
 def _sync_file(local_path: pathlib.Path, remote_path: pathlib.Path, *, dry_run: bool = False) -> None:
     assert ctx is not None
 
-    if local_path.suffix == SUFFIX_TX:
-        ctx.debug('  skipping .tx file')
+    if local_path.suffix == SUFFIX_PART:
+        DEBUG('  skipping .tx file')
         return
     else:
         if dry_run:
             pass
         else:
+            perm: int = local_path.stat().st_mode & 0o777
+            INFO(f"  sync: '{local_path}' -> '{remote_path}' (perm={oct(perm)})")
             ctx.sftp_put(local_path, remote_path)
 
-            if ctx.should_keep(local_path.name):
-                ctx.debug('  keep modified file as SHARED')
+            if ctx.should_keep(str(local_path)):
+                DEBUG('  SHOULD keep.')
+                DEBUG('  keep modified file as SHARED')
                 local_path.chmod(CacheState.S)
             else:
+                DEBUG('  NOT keep.')
                 pathlib_unlink(local_path)
-                local_path.touch(mode=CacheState.I)
+                pathlib_touch(local_path, mode=CacheState.I)
 
     return
 
@@ -467,9 +462,9 @@ def _sync_file(local_path: pathlib.Path, remote_path: pathlib.Path, *, dry_run: 
 def _sync_core(local_path: pathlib.Path, remote_path: pathlib.Path, *, dry_run: bool = False) -> None:
     assert ctx is not None
     ctx.push('_sync_core', is_debug=True)
-    ctx.debug(f'   local_path: "{local_path}"')
-    ctx.debug(f'  remote_path: "{remote_path}"')
-    ctx.debug(f'      dry_run: "{dry_run}"')
+    DEBUG(f'   local_path: "{local_path}"')
+    DEBUG(f'  remote_path: "{remote_path}"')
+    DEBUG(f'      dry_run: "{dry_run}"')
 
     for p in local_path.iterdir():
         local_p: pathlib.Path = p
@@ -482,23 +477,23 @@ def _sync_core(local_path: pathlib.Path, remote_path: pathlib.Path, *, dry_run: 
 
             match perm:
                 case CacheState.M:
-                    ctx.info(f"      modified: '{local_p}' -> '{remote_p}'")
+                    INFO(f"      modified: '{local_p}' -> '{remote_p}'")
                     _sync_file(local_p, remote_p, dry_run=dry_run)
 
                 case CacheState.S:
-                    ctx.debug(f"       shared: '{local_p}'")
+                    DEBUG(f"       shared: '{local_p}'")
                     _sync_file(local_p, remote_p, dry_run=dry_run)
                     pass
 
                 case CacheState.I:
-                    ctx.debug(f"  invalidated: '{local_p}'")
+                    DEBUG(f"  invalidated: '{local_p}'")
                     pass
 
                 case CacheState.N:
-                    ctx.info(f"          new: '{local_p}' -> '{remote_p}'")
+                    INFO(f"          new: '{local_p}' -> '{remote_p}'")
                     _sync_file(local_p, remote_p, dry_run=dry_run)
                 case CacheState.D:
-                    ctx.info(f"  deleting remote file: '{remote_p}'")
+                    INFO(f"  deleting remote file: '{remote_p}'")
                     if dry_run:
                         pass
                     else:
@@ -527,7 +522,7 @@ def sync_xpathlib(*, dry_run: bool = False) -> None:
     e: datetime = datetime.now()
 
     elapsed: float = (e - s).total_seconds()
-    ctx.info(f'  sync in {elapsed:.2f} seconds.')
+    INFO(f'  sync in {elapsed:.2f} seconds.')
 
     ctx.pop('sync_xpathlib')
     return
@@ -545,6 +540,20 @@ pathlib_unlink: callable = pathlib.Path.unlink
 pathlib_rmdir: callable = pathlib.Path.rmdir
 
 
+def copy_if(p1: pathlib.Path, p2: pathlib.Path) -> None:
+    """Make a copy if p1 exists to p2"""
+
+    p2.parent.mkdir(parents=True, exist_ok=True)
+    if p1.exists():
+        # use pathlib_* to avoid xpathlib
+        with pathlib_open(p1, 'rb') as fr, pathlib_open(p2, 'wb') as fw:
+            fw.write(fr.read())
+    else:
+        pathlib_touch(p2)
+
+    return
+
+
 class XFile:
     def __init__(self, path: pathlib.Path, mode: str) -> None:
         assert ctx is not None
@@ -554,6 +563,11 @@ class XFile:
         self._mode: str = mode
 
         self._path_tx: pathlib.Path | None = None
+
+        DEBUG('XFile.__init__:')
+        DEBUG(f'      path: {self._path}')
+        DEBUG(f'      mode: {self._mode}')
+        DEBUG(f'  is_xpath: {self._is_xpath}')
 
         if not self._is_xpath:
             # out of xpathlib dir
@@ -568,37 +582,44 @@ class XFile:
             if is_write(mode):
                 self._path_tx = resolve_tx(self._path)
 
-                # copy existing file to 'part' file
-                self._path_tx.parent.mkdir(parents=True, exist_ok=True)
+                # make a copy
                 if is_append(mode):
-                    self._path_tx.write_bytes(self._path.read_bytes())
+                    copy_if(self._path, self._path_tx)
                 else:
-                    pathlib_touch(self._path_tx)
+                    pass
 
                 self._f = pathlib_open(self._path_tx, mode)
-            else:
-                # read-only
+            else:  # read
                 self._f = pathlib_open(self._path, mode)
 
         return
 
+    def __del__(self) -> None:
+        self.close()
+        return
+
     def close(self) -> None:
-        self._f.close()
+        assert ctx is not None
+        DEBUG('XFile.close:')
+        DEBUG(f'      path: {self._path}')
+        DEBUG(f'      mode: {self._mode}')
+        DEBUG(f'  is_xpath: {self._is_xpath}')
+
+        if not self._f.closed:
+            self._f.close()
 
         if not self._is_xpath:
             pass
         else:
-            # If 'part' file exists, rename to final
+            # commit
             if self._path_tx:
-                # transition state
                 if self._path.exists():
-                    self._path_tx.chmod(self._path.stat().st_mode)
+                    self._path.chmod(self._path.stat().st_mode)
                 else:
-                    self._path_tx.chmod(CacheState.N)
+                    self._path.chmod(CacheState.N)
                 transit_cachestate(self._path_tx, self._mode)
 
-                # commit
-                pathlib_rename(self._path_tx, self._path)
+                pathlib_replace(self._path_tx, self._path)
             else:
                 # here, read-only
                 pass
@@ -607,6 +628,12 @@ class XFile:
 
     # context manager
     def __enter__(self) -> XFile:
+        assert ctx is not None
+
+        DEBUG('XFile.__enter__')
+        DEBUG(f'      path: {self._path}')
+        DEBUG(f'      mode: {self._mode}')
+
         self._f.__enter__()
         return self
 
@@ -616,13 +643,31 @@ class XFile:
         exc_value: BaseException | None,
         traceback: types.TracebackType | None,
     ) -> bool:
+        assert ctx is not None
+
+        DEBUG('XFile.__exit__')
+        DEBUG(f'      path: {self._path}')
+        DEBUG(f'      mode: {self._mode}')
+
         ret: bool = self._f.__exit__(exc_type, exc_value, traceback)
         self.close()
+
         return ret
 
     # delegate
     def __getattr__(self, name: str) -> object:
-        return getattr(self._f, name)
+        attr = getattr(self._f, name)
+
+        if callable(attr):
+            # keep self to prevent early gc
+            @functools.wraps(attr)
+            def method(*args, **kwargs):  # pyright: ignore[reportMissingParameterType]
+                _self: XFile = self
+                return attr(*args, **kwargs)
+
+            return method
+        else:
+            return attr
 
 
 def xpathlib_open(
@@ -636,16 +681,15 @@ def xpathlib_open(
 ) -> XFile:
     assert ctx is not None
     ctx.push('xpathlib_open', is_debug=True)
-    ctx.debug(f'       self: {self}')
-    ctx.debug(f'       mode: {mode}')
-    ctx.debug(f'  buffering: {buffering}')
-    ctx.debug(f'   encoding: {encoding}')
-    ctx.debug(f'     errors: {errors}')
-    ctx.debug(f'    newline: {newline}')
-    ctx.debug(f'     kwargs: {kwargs}')
+    DEBUG(f'       self: {self}')
+    DEBUG(f'       mode: {mode}')
+    DEBUG(f'  buffering: {buffering}')
+    DEBUG(f'   encoding: {encoding}')
+    DEBUG(f'     errors: {errors}')
+    DEBUG(f'    newline: {newline}')
+    DEBUG(f'     kwargs: {kwargs}')
 
     ctx.pop('xpathlib_open', is_debug=True)
-
     return XFile(self, mode)
 
 
@@ -656,9 +700,9 @@ def xpathlib_touch(
 ) -> None:
     assert ctx is not None
     ctx.push('xpathlib_touch', is_debug=True)
-    ctx.debug(f'       self: {self}')
-    ctx.debug(f'       mode: {oct(mode)}')
-    ctx.debug(f'   exist_ok: {exist_ok}')
+    DEBUG(f'       self: {self}')
+    DEBUG(f'       mode: {oct(mode)}')
+    DEBUG(f'   exist_ok: {exist_ok}')
 
     if not ctx.is_xpath(self):
         pathlib_touch(self, mode=mode, exist_ok=exist_ok)
@@ -667,8 +711,9 @@ def xpathlib_touch(
             if not exist_ok:
                 raise FileExistsError(f'File exists: {self}')
             else:
-                # state transition as "WRITE"
-                transit_cachestate(self, mode='w')
+                pass
+
+            cache(self, ctx.resolve_remote(self))
         else:
             self.parent.mkdir(parents=True, exist_ok=True)
             pathlib_touch(self, mode=CacheState.N)
@@ -684,9 +729,9 @@ def xpathlib_symlink_to(
 ) -> None:
     assert ctx is not None
     ctx.push('xpathlib_symlink_to', is_debug=True)
-    ctx.debug(f'                 self: {self}')
-    ctx.debug(f'               target: {target}')
-    ctx.debug(f'  target_is_directory: {target_is_directory}')
+    DEBUG(f'                 self: {self}')
+    DEBUG(f'               target: {target}')
+    DEBUG(f'  target_is_directory: {target_is_directory}')
 
     if not ctx.is_xpath(self):
         pathlib_symlink_to(self, target, target_is_directory=target_is_directory)
@@ -700,8 +745,8 @@ def xpathlib_symlink_to(
 def xpathlib_rename(self: pathlib.Path, target: pathlib.Path) -> pathlib.Path:
     assert ctx is not None
     ctx.push('xpathlib_rename', is_debug=True)
-    ctx.debug(f'       self: {self}')
-    ctx.debug(f'     target: {target}')
+    DEBUG(f'       self: {self}')
+    DEBUG(f'     target: {target}')
 
     both_not_xpath: bool = not ctx.is_xpath(self) and not ctx.is_xpath(target)
     both_xpath: bool = ctx.is_xpath(self) and ctx.is_xpath(target)
@@ -716,12 +761,12 @@ def xpathlib_rename(self: pathlib.Path, target: pathlib.Path) -> pathlib.Path:
             newpath: pathlib.Path = ctx.resolve_remote(target)
 
             if is_remotefile(self):
-                ctx.debug(f'  is remotefile: {self}')
-                ctx.info(f"  renaming remote file: '{oldpath}' -> '{newpath}'")
+                DEBUG(f'  is remotefile: {self}')
+                INFO(f"  renaming remote file: '{oldpath}' -> '{newpath}'")
                 with ctx:
                     ctx.sftp_rename(oldpath, newpath)
             else:
-                ctx.debug(f'  is localfile: {self}')
+                DEBUG(f'  is localfile: {self}')
                 pass
 
             result = pathlib_rename(self, target)
@@ -732,11 +777,11 @@ def xpathlib_rename(self: pathlib.Path, target: pathlib.Path) -> pathlib.Path:
                 oldpath: pathlib.Path = ctx.resolve_remote(self)
                 newpath: pathlib.Path = ctx.resolve_remote(target)
 
-                ctx.info(f"  renaming remote directory: '{oldpath}' -> '{newpath}'")
+                INFO(f"  renaming remote directory: '{oldpath}' -> '{newpath}'")
                 with ctx:
                     ctx.sftp_rename(oldpath, newpath)
             else:
-                ctx.debug(f'  is localdir: {self}')
+                DEBUG(f'  is localdir: {self}')
 
             result = pathlib_rename(self, target)
 
@@ -754,7 +799,7 @@ def xpathlib_replace(self: pathlib.Path, target: pathlib.Path) -> pathlib.Path:
 def xpathlib_unlink(self: pathlib.Path) -> None:
     assert ctx is not None
     ctx.push('xpathlib_unlink', is_debug=True)
-    ctx.debug(f'       self: {self}')
+    DEBUG(f'       self: {self}')
 
     if not ctx.is_xpath(self):
         pathlib_unlink(self)
@@ -774,14 +819,14 @@ def xpathlib_unlink(self: pathlib.Path) -> None:
 def xpathlib_rmdir(self: pathlib.Path) -> None:
     assert ctx is not None
     ctx.push('xpathlib_rmdir', is_debug=True)
-    ctx.debug(f'  self: {self}')
+    DEBUG(f'  self: {self}')
 
     if not ctx.is_xpath(self):
         pathlib_rmdir(self)
     else:
         if is_remotedir(self):
             remote_path: pathlib.Path = ctx.resolve_remote(self)
-            ctx.info(f"  remote_path: '{remote_path}'")
+            INFO(f"  remote_path: '{remote_path}'")
             with ctx:
                 ctx.sftp_rmdir(remote_path)
         else:
@@ -794,6 +839,16 @@ def xpathlib_rmdir(self: pathlib.Path) -> None:
 #
 # API
 #
+def logger_xpathlib() -> logging.Logger:
+    """
+    Return the logger for xpathlib
+
+    """
+    global logger
+
+    return logger
+
+
 def enable_xpathlib(
     ssh_config: SSHConfig,
     cachedir: pathlib.Path,
@@ -861,12 +916,15 @@ def enable_xpathlib(
     else:
         pass
 
-    ctx.info('xpathlib initialized')
-    ctx.info(f'  cachedir: {cachedir}')
-    ctx.info(f'  loglevel: {loglevel.name}')
-    ctx.info(f'    logdir: {logdir}')
+    INFO('xpathlib initialized')
+    INFO(f'  cachedir: {cachedir}')
+    INFO(f'  loglevel: {loglevel.name}')
+    INFO(f'    logdir: {logdir}')
+    INFO('     keeps:')
+    for pattern in ctx.keeps:
+        INFO(f'       {pattern}')
 
-    ctx.info('Building cache...')
+    INFO('Building cache...')
     build(ctx.cachedir, ctx.remotedir)
 
     # monkey patch
@@ -886,8 +944,12 @@ def disable_xpathlib() -> None:
     Disable xpathlib and restore original pathlib behavior.
     """
     global ctx
+    global logger
+    logger.info('xpathlib disabled')
 
     ctx = None
+    logger.handlers.clear()
+
     pathlib.Path.open = pathlib_open  # pyright: ignore[reportAttributeAccessIssue]
     pathlib.Path.touch = pathlib_touch  # pyright: ignore[reportAttributeAccessIssue]
     pathlib.Path.symlink_to = pathlib_symlink_to  # pyright: ignore[reportAttributeAccessIssue]
