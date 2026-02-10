@@ -189,12 +189,11 @@ class Context(AbstractContextManager):  # pyright: ignore[reportMissingTypeArgum
             try:
                 # if success, dir exists
                 self.sftp_client.stat(str(p))
-                self.already_exist_dirs.add(p)
-                break
             except FileNotFoundError:
                 DEBUG(f'Creating remote directory: {p}')
                 self.sftp_client.mkdir(str(p))
-                self.already_exist_dirs.add(p)
+
+            self.already_exist_dirs.add(p)
 
         remote_path_tx: pathlib.Path = resolve_tx(remote_path)
         self.sftp_client.put(str(local_path), str(remote_path_tx))
