@@ -76,6 +76,10 @@ class Context(AbstractContextManager):  # pyright: ignore[reportMissingTypeArgum
 
     keeps: list[re.Pattern[str]] = field(default_factory=list)
 
+    # for sync
+    # already created remote directories
+    already_exist_dirs: set[pathlib.Path] = field(default_factory=set)
+
     def is_xpath(self, path: pathlib.Path) -> bool:
         """Return True if the given path is inside the xpathlib cachedir."""
         cachedir_s: str = str(self.cachedir)
@@ -178,6 +182,20 @@ class Context(AbstractContextManager):  # pyright: ignore[reportMissingTypeArgum
     def sftp_put(self, local_path: pathlib.Path, remote_path: pathlib.Path) -> None:
         assert self.sftp_client is not None
 
+        for p in reversed(remote_path.parents):
+            if p in self.already_exist_dirs:
+                break
+
+            try:
+                # if success, dir exists
+                self.sftp_client.stat(str(p))
+                self.already_exist_dirs.add(p)
+                break
+            except FileNotFoundError:
+                DEBUG(f'Creating remote directory: {p}')
+                self.sftp_client.mkdir(str(p))
+                self.already_exist_dirs.add(p)
+
         remote_path_tx: pathlib.Path = resolve_tx(remote_path)
         self.sftp_client.put(str(local_path), str(remote_path_tx))
 
@@ -203,6 +221,7 @@ class Context(AbstractContextManager):  # pyright: ignore[reportMissingTypeArgum
         assert self.sftp_client is not None
 
         self.sftp_client.rmdir(str(remote_path))
+        self.already_exist_dirs.discard(remote_path)
 
         return
 
