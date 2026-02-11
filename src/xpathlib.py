@@ -422,10 +422,10 @@ def cache(local_path: pathlib.Path, remote_path: pathlib.Path) -> None:
     DEBUG(f'  remote_path: {remote_path}')
 
     if local_path.exists():
-        perm: int = local_path.stat().st_mode & 0o777
-        DEBUG(f'  existing file with perms "{oct(perm)}"')
+        state: CacheState = CacheState.from_path(local_path)
+        DEBUG(f'  existing file with state "{state.name}"')
 
-        match perm:
+        match state:
             case CacheState.M:
                 DEBUG('  modified. do nothing')
                 pass
@@ -447,7 +447,7 @@ def cache(local_path: pathlib.Path, remote_path: pathlib.Path) -> None:
                 pathlib_touch(local_path, mode=CacheState.N)
                 pass
             case _:
-                raise RuntimeError(f'Unsupported file perms: {local_path} ({oct(perm)})')
+                raise RuntimeError(f'Unsupported file state: {local_path} ({state.name})')
     else:
         DEBUG('  not exists. create as new')
         local_path.parent.mkdir(parents=True, exist_ok=True)
@@ -467,8 +467,8 @@ def _sync_file(local_path: pathlib.Path, remote_path: pathlib.Path, *, dry_run: 
         if dry_run:
             pass
         else:
-            perm: int = local_path.stat().st_mode & 0o777
-            INFO(f"  sync: '{local_path}' -> '{remote_path}' (perm={oct(perm)})")
+            state: CacheState = CacheState.from_path(local_path)
+            INFO(f"  sync: '{local_path}' -> '{remote_path}' (state={state.name})")
             ctx.sftp_put(local_path, remote_path)
 
             if ctx.should_keep(str(local_path)):
@@ -497,9 +497,9 @@ def _sync_core(local_path: pathlib.Path, remote_path: pathlib.Path, *, dry_run: 
         if p.is_dir():
             _sync_core(local_p, remote_p, dry_run=dry_run)
         elif p.is_file():
-            perm: int = p.stat().st_mode & 0o777
+            state: CacheState = CacheState.from_path(local_p)
 
-            match perm:
+            match state:
                 case CacheState.M:
                     INFO(f"      modified: '{local_p}' -> '{remote_p}'")
                     _sync_file(local_p, remote_p, dry_run=dry_run)
@@ -525,7 +525,7 @@ def _sync_core(local_path: pathlib.Path, remote_path: pathlib.Path, *, dry_run: 
                         pathlib_unlink(p)
 
                 case _:
-                    raise RuntimeError(f'Unsupported file perms: {local_p} ({oct(perm)})')
+                    raise RuntimeError(f'Unsupported file state: {local_p} ({state.name})')
         else:
             raise RuntimeError(f'Unsupported file type: {local_p}')
 
