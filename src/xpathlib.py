@@ -831,7 +831,7 @@ def xpathlib_unlink(self: pathlib.Path, missing_ok: bool = False) -> None:
         if is_remotefile(self):
             pathlib_unlink(self, missing_ok=missing_ok)
             pathlib_touch(self, mode=CacheState.D)
-        if CacheState.from_path(self) == CacheState.N:
+        elif CacheState.from_path(self) == CacheState.N:
             pathlib_unlink(self, missing_ok=missing_ok)
         else:
             raise RuntimeError(f'Unsupported file perms: {self} ({...})')
