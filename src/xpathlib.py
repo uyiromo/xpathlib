@@ -276,8 +276,8 @@ def is_append(mode: str) -> bool:
 
 def is_remotefile(path: pathlib.Path) -> bool:
     """Return TRUE if the file is shared with remote"""
-    perm: int = path.stat().st_mode & 0o777
-    return perm in {
+    state: CacheState = CacheState.from_path(path)
+    return state in {
         CacheState.M,
         CacheState.S,
         CacheState.I,
