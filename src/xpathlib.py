@@ -182,9 +182,10 @@ class Context(AbstractContextManager):  # pyright: ignore[reportMissingTypeArgum
     def sftp_put(self, local_path: pathlib.Path, remote_path: pathlib.Path) -> None:
         assert self.sftp_client is not None
 
+        # create parents on remote
         for p in reversed(remote_path.parents):
             if p in self.already_exist_dirs:
-                break
+                continue
 
             try:
                 # if success, dir exists
