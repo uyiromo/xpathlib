@@ -12,6 +12,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum, IntEnum
 from threading import Lock
+from typing import BinaryIO, TextIO
 
 import paramiko
 from paramiko import SFTPAttributes, SFTPClient
@@ -585,6 +586,7 @@ class XFile:
         self._is_xpath: bool = ctx.is_xpath(path)
         self._path: pathlib.Path = path
         self._mode: str = mode
+        self._f: BinaryIO | TextIO | None = None  # pyright: ignore[reportMissingType]
 
         self._path_tx: pathlib.Path | None = None
 
@@ -629,7 +631,7 @@ class XFile:
         DEBUG(f'      mode: {self._mode}')
         DEBUG(f'  is_xpath: {self._is_xpath}')
 
-        if not self._f.closed:
+        if self._f and not self._f.closed:
             self._f.close()
 
         if not self._is_xpath:
