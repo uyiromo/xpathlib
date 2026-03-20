@@ -2,11 +2,13 @@ from __future__ import annotations
 
 import fnmatch
 import functools
+import io
 import logging
 import pathlib
 import re
 import stat
 import types
+from collections import OrderedDict
 from contextlib import AbstractContextManager
 from dataclasses import dataclass, field
 from datetime import datetime
@@ -564,19 +566,41 @@ pathlib_replace: callable = pathlib.Path.replace
 pathlib_unlink: callable = pathlib.Path.unlink
 pathlib_rmdir: callable = pathlib.Path.rmdir
 
+MAX_CACHE_N: int = 100
+tx_cache: OrderedDict[pathlib.Path, BinaryIO | TextIO] = OrderedDict()
 
-def copy_if(p1: pathlib.Path, p2: pathlib.Path) -> None:
-    """Make a copy if p1 exists to p2"""
 
-    p2.parent.mkdir(parents=True, exist_ok=True)
-    if p1.exists():
-        # use pathlib_* to avoid xpathlib
-        with pathlib_open(p1, 'rb') as fr, pathlib_open(p2, 'wb') as fw:
-            fw.write(fr.read())
+def init_tx_cache(p1: pathlib.Path, mode: str) -> BinaryIO | TextIO:
+    """Initialize transactional cache for a given path"""
+
+    cache: BinaryIO | TextIO
+
+    if p1 in tx_cache:
+        cache = tx_cache[p1]
     else:
-        pathlib_touch(p2)
+        p1.parent.mkdir(parents=True, exist_ok=True)
+        if p1.exists():
+            # use pathlib_* to avoid xpathlib
+            if 'b' in mode:
+                cache = io.BytesIO(pathlib_open(p1, 'rb').read())
+            else:
+                cache = io.StringIO(pathlib_open(p1, 'r', encoding='utf-8').read())
+        else:
+            if 'b' in mode:
+                cache = io.BytesIO()
+            else:
+                cache = io.StringIO()
 
-    return
+    # update cache
+    if len(tx_cache) >= MAX_CACHE_N:
+        tx_cache.popitem(last=False)
+
+    if p1 in tx_cache:
+        tx_cache.move_to_end(p1)
+    else:
+        tx_cache[p1] = cache
+
+    return cache
 
 
 class XFile:
@@ -587,8 +611,6 @@ class XFile:
         self._path: pathlib.Path = path
         self._mode: str = mode
         self._f: BinaryIO | TextIO | None = None  # pyright: ignore[reportMissingType]
-
-        self._path_tx: pathlib.Path | None = None
 
         DEBUG('XFile.__init__:')
         DEBUG(f'      path: {self._path}')
@@ -610,11 +632,10 @@ class XFile:
 
                 # make a copy
                 if is_append(mode):
-                    copy_if(self._path, self._path_tx)
+                    self._f = init_tx_cache(self._path, mode)
                 else:
-                    pass
+                    self._f = pathlib_open(self._path_tx, mode)
 
-                self._f = pathlib_open(self._path_tx, mode)
             else:  # read
                 self._f = pathlib_open(self._path, mode)
 
