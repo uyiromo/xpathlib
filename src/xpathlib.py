@@ -612,6 +612,9 @@ class XFile:
         self._mode: str = mode
         self._f: BinaryIO | TextIO | None = None  # pyright: ignore[reportMissingType]
 
+        self._is_cached: bool = False
+        self._path_tx: pathlib.Path | None = None
+
         DEBUG('XFile.__init__:')
         DEBUG(f'      path: {self._path}')
         DEBUG(f'      mode: {self._mode}')
@@ -626,12 +629,12 @@ class XFile:
             remote_path: pathlib.Path = ctx.remotedir / local_path.relative_to(ctx.cachedir)
             cache(local_path, remote_path)
 
+            self._path_tx = resolve_tx(self._path)
+
             # transactional update
             if is_write(mode):
-                self._path_tx = resolve_tx(self._path)
-
-                # make a copy
                 if is_append(mode):
+                    self._is_cached = True
                     self._f = init_tx_cache(self._path, mode)
                 else:
                     self._f = pathlib_open(self._path_tx, mode)
@@ -652,8 +655,23 @@ class XFile:
         DEBUG(f'      mode: {self._mode}')
         DEBUG(f'  is_xpath: {self._is_xpath}')
 
+        # close
         if self._f and not self._f.closed:
-            self._f.close()
+            if self._is_cached:
+                # write back to tx file
+                assert self._path_tx is not None
+
+                self._f.seek(0)
+                if 'b' in self._mode:
+                    with pathlib_open(self._path_tx, 'wb') as f_tx:
+                        f_tx.write(self._f.read())
+                else:
+                    with pathlib_open(self._path_tx, 'w', encoding='utf-8') as f_tx:
+                        f_tx.write(self._f.read())
+            else:
+                self._f.close()
+        else:
+            pass
 
         if not self._is_xpath:
             pass
