@@ -600,6 +600,11 @@ def init_tx_cache(p1: pathlib.Path, mode: str) -> BinaryIO | TextIO:
     else:
         tx_cache[p1] = cache
 
+    if is_append(mode):
+        cache.seek(0, 2)  # seek to end
+    else:
+        pass
+
     return cache
 
 
